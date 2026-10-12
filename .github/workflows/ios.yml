@@ -1,0 +1,78 @@
+name: Build Psych Engine iOS IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, experimental]
+
+permissions:
+  contents: read
+
+jobs:
+  build-ios:
+    name: Compile iOS
+    runs-on: macos-15
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Haxe
+        uses: krdlab/setup-haxe@master
+        with:
+          haxe-version: "4.3.2"
+
+      - name: Setup Haxelib
+        run: |
+          haxelib setup ~/haxelib
+          haxelib install hxcpp --quiet
+          haxelib install hmm --quiet
+
+      - name: Install project libraries
+        run: haxelib run hmm install --quiet
+
+      - name: Configure SScript
+        run: |
+          printf '%s' 'oy9:showMacroty8:loopCosti25y10:includeAllfg' > ~/settings.cocoa
+
+      - name: Create version
+        run: echo "${GITHUB_RUN_ID}" > VERSION
+
+      - name: Compile iOS
+        run: |
+          haxelib run lime build ios \
+            -nosign \
+            --app-version="0.7.3-${GITHUB_RUN_ID}" \
+            -D officialBuild
+
+      - name: Package IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          APP_DIR="export/release/ios/build/Release-iphoneos"
+          mkdir -p dist Payload
+
+          APP_PATH="$(find "$APP_DIR" -maxdepth 1 \
+            -type d -name '*.app' -print -quit)"
+
+          if [ -z "$APP_PATH" ]; then
+            echo "ERROR: No se encontró la aplicación .app"
+            find export/release/ios -maxdepth 5 -print || true
+            exit 1
+          fi
+
+          cp -R "$APP_PATH" Payload/
+          ditto -c -k --sequesterRsrc --keepParent \
+            Payload dist/PsychEngine-iOS.ipa
+          rm -rf Payload
+
+      - name: Upload IPA
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: PsychEngine-iOS-IPA
+          path: dist/PsychEngine-iOS.ipa
+          if-no-files-found: error
+          retention-days: 7
