@@ -77,9 +77,27 @@ jobs:
             -destination 'generic/platform=iOS' \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_IDENTITY='' \
+            CODE_SIGNING_IDENTITY=- \
             IPHONEOS_DEPLOYMENT_TARGET=12.0 \
             build 2>&1 | tee -a ios-build.log
+
+      - name: Verify application
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          APP_PATH="$(find export/release/ios -type d -name '*.app' -print -quit)"
+
+          if [ -z "$APP_PATH" ]; then
+            echo "ERROR: No se encontró la aplicación .app"
+            find export/release/ios -maxdepth 6 -print || true
+            exit 1
+          fi
+
+          echo "Aplicación encontrada: $APP_PATH"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' \
+            "$APP_PATH/Info.plist"
 
       - name: Package IPA
         if: success()
@@ -91,7 +109,6 @@ jobs:
 
           if [ -z "$APP_PATH" ]; then
             echo "ERROR: No se encontró ninguna aplicación .app"
-            find export/release/ios -maxdepth 6 -print || true
             exit 1
           fi
 
@@ -121,9 +138,10 @@ jobs:
 
       - name: Show build errors
         if: failure()
+        shell: bash
         run: |
           if [ -f ios-build.log ]; then
             grep -n -B 10 -A 10 -E \
-              'error:|Error:|BUILD FAILED|failed' \
+              'error:|Error:|BUILD FAILED|requires a development team|failed' \
               ios-build.log || true
           fi
