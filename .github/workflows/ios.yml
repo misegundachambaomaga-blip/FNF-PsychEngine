@@ -32,7 +32,6 @@ jobs:
 
       - name: Skip SScript setup mode
         run: |
-          mkdir -p ~
           printf '%s' 'oy9:showMacroty8:loopCosti25y10:includeAllfg' >> ~/settings.cocoa
 
       - name: Create Version
@@ -46,7 +45,7 @@ jobs:
             --app-version="0.7.3-${GITHUB_RUN_ID}" \
             -D officialBuild 2>&1 | tee ios-build.log
 
-      - name: Set iOS deployment target to 12.0
+      - name: Set iOS deployment target
         if: success()
         shell: bash
         run: |
@@ -55,7 +54,7 @@ jobs:
           PROJECT="export/release/ios/PsychEngine.xcodeproj/project.pbxproj"
 
           if [ ! -f "$PROJECT" ]; then
-            echo "No se encontró $PROJECT"
+            echo "ERROR: No se encontró el proyecto Xcode"
             find export/release/ios -maxdepth 4 -print || true
             exit 1
           fi
@@ -77,6 +76,8 @@ jobs:
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
             CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_IDENTITY='' \
             IPHONEOS_DEPLOYMENT_TARGET=12.0 \
             build 2>&1 | tee -a ios-build.log
 
@@ -121,6 +122,8 @@ jobs:
       - name: Show build errors
         if: failure()
         run: |
-          grep -n -B 10 -A 10 -E \
-            'error:|Error:|BUILD FAILED|failed' \
-            ios-build.log || true
+          if [ -f ios-build.log ]; then
+            grep -n -B 10 -A 10 -E \
+              'error:|Error:|BUILD FAILED|failed' \
+              ios-build.log || true
+          fi
