@@ -21,48 +21,45 @@ jobs:
       - name: Setup Haxe
         uses: krdlab/setup-haxe@master
         with:
-          haxe-version: "4.3.2"
+          haxe-version: "4.3.4"
 
       - name: Setup Haxelib
         run: |
           haxelib setup ~/haxelib
           haxelib install hxcpp --quiet
-          haxelib install hmm --quiet
+          chmod +x ./setup/unix.sh
+          ./setup/unix.sh
 
-      - name: Install project libraries
-        run: haxelib run hmm install --quiet
-
-      - name: Configure SScript
+      - name: Skip SScript setup mode
         run: |
-          printf '%s' 'oy9:showMacroty8:loopCosti25y10:includeAllfg' > ~/settings.cocoa
+          printf '%s' 'oy9:showMacroty8:loopCosti25y10:includeAllfg' >> ~/settings.cocoa
 
-      - name: Create version
+      - name: Create Version
         run: echo "${GITHUB_RUN_ID}" > VERSION
 
       - name: Compile iOS
         run: |
+          set -o pipefail
           haxelib run lime build ios \
             -nosign \
             --app-version="0.7.3-${GITHUB_RUN_ID}" \
-            -D officialBuild
+            -D officialBuild 2>&1 | tee ios-build.log
 
       - name: Package IPA
+        if: success()
         shell: bash
         run: |
           set -euo pipefail
 
-          APP_DIR="export/release/ios/build/Release-iphoneos"
-          mkdir -p dist Payload
-
-          APP_PATH="$(find "$APP_DIR" -maxdepth 1 \
-            -type d -name '*.app' -print -quit)"
+          APP_PATH="$(find export -type d -name '*.app' -print -quit)"
 
           if [ -z "$APP_PATH" ]; then
-            echo "ERROR: No se encontró la aplicación .app"
-            find export/release/ios -maxdepth 5 -print || true
+            echo "ERROR: No se encontró ninguna aplicación .app"
+            find export -maxdepth 6 -print || true
             exit 1
           fi
 
+          mkdir -p dist Payload
           cp -R "$APP_PATH" Payload/
           ditto -c -k --sequesterRsrc --keepParent \
             Payload dist/PsychEngine-iOS.ipa
@@ -75,4 +72,13 @@ jobs:
           name: PsychEngine-iOS-IPA
           path: dist/PsychEngine-iOS.ipa
           if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload Build Log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: iOS-Build-Log
+          path: ios-build.log
+          if-no-files-found: ignore
           retention-days: 7
